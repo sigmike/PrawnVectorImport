@@ -15,15 +15,18 @@ module PrawnVectorImport
     
     def output
       @header = []
+      @header << "require 'matrix'"
+      @header << ""
       @header << "module Prawn"
       @header << "  module Graphics"
       @header << "    # Change this method name to something that fits your graphics"
       @header << "    # ox and oy are offset_x and offset_y, respectively. they are used to position your graphics"
       @header << "    # os is the amount to scale the graphics"
       @header << "    def #@method_name(ox=0, oy=0, os=1)"
-      @header << "      # Do not modify gsXs and gsYs. They handle translational graphics state saving/restoring"
-      @header << "      gsXs = []"
-      @header << "      gsYs = []"
+      @header << "      # Do not modify gs. It handles translational graphics state saving/restoring"
+      @header << "      gs = []"
+      @header << "      m = Matrix.unit(3)"
+      @header << "      m = Matrix[[os, 0, 0], [0, os, 0], [ox, oy, os]] * m"
 
 
       @footer = []
@@ -35,9 +38,8 @@ module PrawnVectorImport
     end
 
     def concatenate_matrix(*params)
-      # only handling translational matrix at this point
-      @output << "ox += #{params[4]} * os"
-      @output << "oy += #{params[5]} * os"
+      a, b, c, d, e, f = params
+      @output << "m = Matrix[[#{a}, #{b}, 0], [#{c}, #{d}, 0], [#{e}, #{f}, 1]] * m"
     end
 
     def save_graphics_state
@@ -45,13 +47,11 @@ module PrawnVectorImport
       # point, I am only handling simple modifications, and
       # Illustrator seems use concatenate_matrix and graphics state
       # saving and restoring around various objects
-      @output << "gsXs << ox"
-      @output << "gsYs << oy"
+      @output << "gs << m.dup"
     end
 
     def restore_graphics_state
-      @output << "ox = gsXs.pop"
-      @output << "oy = gsYs.pop"
+      @output << "m = gs.pop"
     end
 
     def discard_deferred_block
@@ -96,14 +96,19 @@ module PrawnVectorImport
     alias_method :fill_stroke_with_even_odd, :fill_stroke
     alias_method :close_fill_stroke_with_even_odd, :fill_stroke
     
-
+    def transform(x, y)
+      x = "m[0,0] * #{x} + m[1,0] * #{y} + m[2,0]"
+      y = "m[0,1] * #{x} + m[1,1] * #{y} + m[2,1]"
+      "[#{x}, #{y}]"
+    end
+    
     def begin_new_subpath(*point)
-      @deferred_block << "move_to(os * #{point[0]} + ox, os * #{point[1]} + oy)"
+      @deferred_block << "move_to(*#{transform(*point)})"
     end
 
     def append_line(*point)
       @line_count += 1
-      @deferred_block << "line_to(os * #{point[0]} + ox, os * #{point[1]} + oy)"
+      @deferred_block << "line_to(*#{transform(*point)})"
     end
 
     def append_rectangle(*params)
@@ -111,11 +116,11 @@ module PrawnVectorImport
       y = params[1]
       width = params[2]
       height = params[3]
-      @deferred_block << "rectangle([os * #{x} + ox, os * #{y + height} + oy], os * #{width}, os * #{height})"
+      @deferred_block << "rectangle(#{transform(x, y + height)}, os * #{width}, os * #{height})"
     end
 
     def append_curved_segment(*params)
-      @deferred_block << "curve_to([os * #{params[4]} + ox, os * #{params[5]} + oy], :bounds => [[os * #{params[0]} + ox, os * #{params[1]} + oy], [os * #{params[2]} + ox, os * #{params[3]} + oy]])"
+      @deferred_block << "curve_to(#{transform(params[4], params[5])}, :bounds => [#{transform(params[0], params[1])}, #{transform(params[2], params[3])}])"
     end
 
 
