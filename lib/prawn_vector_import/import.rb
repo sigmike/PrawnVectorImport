@@ -37,11 +37,11 @@ module PrawnVectorImport
     end
 
     def save_graphics_state
-      # broken
+      @output << "add_content 'q' # save graphics state"
     end
 
     def restore_graphics_state
-      # broken
+      @output << "add_content 'Q' # restore graphics state"
     end
 
     def discard_deferred_block
