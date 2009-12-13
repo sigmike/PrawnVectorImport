@@ -35,9 +35,7 @@ module PrawnVectorImport
     end
 
     def concatenate_matrix(*params)
-      # only handling translational matrix at this point
-      @output << "ox += #{params[4]} * os"
-      @output << "oy += #{params[5]} * os"
+      @output << "concatenate_matrix #{params.join(', ')}"
     end
 
     def save_graphics_state
